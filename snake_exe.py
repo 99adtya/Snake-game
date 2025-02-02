@@ -3,6 +3,7 @@ import random
 import numpy as np
 from enum import Enum
 
+# Define directions as enum for clarity
 class Direction(Enum):
     UP = 1
     DOWN = 2
@@ -12,13 +13,12 @@ class Direction(Enum):
 class Snake:
     def __init__(self, x, y, color, name):
         """Initialize a snake with starting position, color and name"""
-        self.body = [(x, y)]
-        self.direction = random.choice(list(Direction))
+        self.body = [(x, y)]  # Snake body, list of positions
+        self.direction = random.choice(list(Direction))  # Random starting direction
         self.color = color
         self.name = name
         self.is_alive = True
         self.score = 0
-        self.last_positions = []  # Store last few positions to detect being stuck
 
     def get_head(self):
         """Return the position of snake's head"""
@@ -26,54 +26,29 @@ class Snake:
 
     def move(self, food_pos, other_snake):
         """
-        Enhanced AI movement logic for the snake with better pathfinding
-        and escape mechanisms
+        AI movement logic for the snake.
+        Decides direction based on food position and collision avoidance.
         """
-        if not self.is_alive:
-            return
-
         head_x, head_y = self.get_head()
         food_x, food_y = food_pos
 
-        # Store current position for stuck detection
-        self.last_positions.append((head_x, head_y))
-        if len(self.last_positions) > 4:  # Keep only last 4 positions
-            self.last_positions.pop(0)
-
-        # Check if snake is stuck (oscillating between same positions)
-        is_stuck = len(self.last_positions) >= 4 and len(set(self.last_positions)) <= 2
-
-        # Calculate possible moves with additional scoring factors
+        # Calculate possible moves
         possible_moves = []
         for direction in Direction:
             next_x, next_y = self.get_next_position(direction)
             
+            # Check if move is safe (no collisions)
             if self.is_safe_move(next_x, next_y, other_snake):
-                # Calculate various scoring factors
-                distance_to_food = abs(next_x - food_x) + abs(next_y - food_y)
-                distance_to_center = abs(next_x - 10) + abs(next_y - 10)  # Distance to center of board
-                space_score = self.evaluate_space(next_x, next_y, other_snake)
-                
-                # If stuck, prioritize moves that break the pattern
-                if is_stuck:
-                    if (next_x, next_y) not in self.last_positions:
-                        space_score += 100  # Heavily favor new positions when stuck
-                
-                # Combined score (lower is better)
-                score = distance_to_food + (distance_to_center * 0.5) - (space_score * 2)
-                possible_moves.append((direction, score))
+                # Calculate distance to food for this move
+                distance = abs(next_x - food_x) + abs(next_y - food_y)
+                possible_moves.append((direction, distance))
 
         if possible_moves:
-            # Choose the move with the best (lowest) score
+            # Choose the move that gets us closest to food
             self.direction = min(possible_moves, key=lambda x: x[1])[0]
         else:
-            # If no moves available, try emergency escape
-            emergency_moves = self.find_emergency_escape(other_snake)
-            if emergency_moves:
-                self.direction = random.choice(emergency_moves)
-            else:
-                self.is_alive = False
-                return
+            self.is_alive = False
+            return
 
         # Move snake in chosen direction
         next_x, next_y = self.get_next_position(self.direction)
@@ -84,46 +59,6 @@ class Snake:
             self.body.pop()
         else:
             self.score += 1
-
-    def evaluate_space(self, x, y, other_snake):
-        """
-        Evaluate amount of free space in each direction from a position.
-        Returns a score based on available space.
-        """
-        space_count = 0
-        checked = set()
-        to_check = [(x, y)]
-        
-        # Flood fill to count accessible spaces
-        while to_check and len(checked) < 20:  # Limit check to avoid too much computation
-            curr_x, curr_y = to_check.pop(0)
-            if (curr_x, curr_y) in checked:
-                continue
-                
-            checked.add((curr_x, curr_y))
-            
-            # Check all adjacent squares
-            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
-                next_x, next_y = curr_x + dx, curr_y + dy
-                if (next_x, next_y) not in checked and self.is_safe_move(next_x, next_y, other_snake):
-                    to_check.append((next_x, next_y))
-                    space_count += 1
-                    
-        return space_count
-
-    def find_emergency_escape(self, other_snake):
-        """Find any possible safe move when snake is trapped"""
-        emergency_moves = []
-        head_x, head_y = self.get_head()
-        
-        for direction in Direction:
-            next_x, next_y = self.get_next_position(direction)
-            if 0 <= next_x < 20 and 0 <= next_y < 20:  # Just check board boundaries
-                if (next_x, next_y) not in self.body[:-1]:  # Allow moving into tail
-                    if (next_x, next_y) not in other_snake.body:
-                        emergency_moves.append(direction)
-                        
-        return emergency_moves
 
     def get_next_position(self, direction):
         """Calculate next position based on direction"""
@@ -144,8 +79,8 @@ class Snake:
         if x < 0 or x >= 20 or y < 0 or y >= 20:
             return False
         
-        # Check self collision (except tail which will move)
-        if (x, y) in self.body[:-1]:
+        # Check self collision
+        if (x, y) in self.body:
             return False
             
         # Check other snake collision
@@ -153,3 +88,139 @@ class Snake:
             return False
             
         return True
+
+class Game:
+    def __init__(self):
+        """Initialize the game"""
+        pygame.init()
+        self.width = 800
+        self.height = 800
+        self.cell_size = 40
+        self.screen = pygame.display.set_mode((self.width, self.height))
+        pygame.display.set_caption('Snake Game')
+
+        # Define colors
+        self.BACKGROUND_COLOR = (0, 0, 0)  # Black background
+        self.GRID_COLOR = (0, 255, 0)  # Neon green grid
+        self.FOOD_COLOR = (255, 0, 255)  # Changed food to magenta for better visibility
+
+        # Create two snakes
+        self.snake1 = Snake(5, 5, (255, 0, 0), "Red Snake")  # Red snake
+        self.snake2 = Snake(15, 15, (0, 0, 255), "Blue Snake")  # Blue snake
+        
+        self.place_new_food()
+        self.clock = pygame.time.Clock()
+
+    def place_new_food(self):
+        """Place food at random position not occupied by snakes"""
+        while True:
+            self.food_pos = (random.randint(0, 19), random.randint(0, 19))
+            if (self.food_pos not in self.snake1.body and 
+                self.food_pos not in self.snake2.body):
+                break
+
+    def update(self):
+        """Update game state"""
+        if self.snake1.is_alive:
+            self.snake1.move(self.food_pos, self.snake2)
+            
+        if self.snake2.is_alive:
+            self.snake2.move(self.food_pos, self.snake1)
+
+        # Check if food was eaten
+        for snake in [self.snake1, self.snake2]:
+            if snake.get_head() == self.food_pos:
+                self.place_new_food()
+
+    def draw_grid(self):
+        """Draw the grid lines"""
+        # Draw vertical lines
+        for x in range(0, self.width, self.cell_size):
+            pygame.draw.line(self.screen, self.GRID_COLOR, (x, 0), (x, self.height), 1)
+        
+        # Draw horizontal lines
+        for y in range(0, self.height, self.cell_size):
+            pygame.draw.line(self.screen, self.GRID_COLOR, (0, y), (self.width, y), 1)
+
+    def draw(self):
+        """Draw the game state"""
+        self.screen.fill(self.BACKGROUND_COLOR)  # Black background
+        
+        # Draw grid
+        self.draw_grid()
+        
+        # Draw food
+        food_rect = pygame.Rect(
+            self.food_pos[0] * self.cell_size,
+            self.food_pos[1] * self.cell_size,
+            self.cell_size,
+            self.cell_size
+        )
+        pygame.draw.rect(self.screen, self.FOOD_COLOR, food_rect)
+
+        # Draw snakes
+        for snake in [self.snake1, self.snake2]:
+            for segment in snake.body:
+                segment_rect = pygame.Rect(
+                    segment[0] * self.cell_size,
+                    segment[1] * self.cell_size,
+                    self.cell_size,
+                    self.cell_size
+                )
+                pygame.draw.rect(self.screen, snake.color, segment_rect)
+
+        # Draw scores with black outline for better visibility
+        font = pygame.font.Font(None, 36)
+        def draw_text_with_outline(text, color, pos):
+            # Draw outline (black)
+            outline_color = (0, 0, 0)
+            for dx, dy in [(-1,-1), (-1,1), (1,-1), (1,1)]:
+                text_surface = font.render(text, True, outline_color)
+                self.screen.blit(text_surface, (pos[0]+dx, pos[1]+dy))
+            # Draw main text
+            text_surface = font.render(text, True, color)
+            self.screen.blit(text_surface, pos)
+
+        draw_text_with_outline(f"{self.snake1.name}: {self.snake1.score}", self.snake1.color, (10, 10))
+        draw_text_with_outline(f"{self.snake2.name}: {self.snake2.score}", self.snake2.color, (10, 50))
+
+        pygame.display.flip()
+
+    def run(self):
+        """Main game loop"""
+        running = True
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+
+            self.update()
+            self.draw()
+            self.clock.tick(10)  # Control game speed
+
+            # Check game over conditions
+            if not (self.snake1.is_alive or self.snake2.is_alive):
+                running = False
+
+        # Display winner
+        winner = None
+        if self.snake1.score > self.snake2.score:
+            winner = self.snake1
+        elif self.snake2.score > self.snake1.score:
+            winner = self.snake2
+        
+        if winner:
+            self.screen.fill(self.BACKGROUND_COLOR)
+            font = pygame.font.Font(None, 74)
+            text = font.render(f"{winner.name} Wins!", True, winner.color)
+            text_rect = text.get_rect(center=(self.width/2, self.height/2))
+            self.screen.blit(text, text_rect)
+            pygame.display.flip()
+            pygame.time.wait(2000)  # Show winner for 2 seconds
+
+        pygame.quit()
+
+# Start the game
+if __name__ == "__main__":
+    game = Game()
+    game.run()
