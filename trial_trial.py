@@ -8,10 +8,6 @@ import time
 
 # Initialize Pygame
 pygame.init()
-# Initialize mixer for sound effects
-mixer.init()
-# Load the eating sound effect
-eating_sound = mixer.Sound('eat.wav')  
 
 # Constants
 WINDOW_WIDTH = 1000
@@ -345,12 +341,10 @@ class Game:
                 # Move snakes
                 if self.player_snake.move(self.fruit_pos, self.ai_snake):
                     self.player_snake.score += 1
-                    eating_sound.play()
                     self.place_fruit()
                 
                 if self.ai_snake.ai_move(self.fruit_pos, self.player_snake):
                     self.ai_snake.score += 1
-                    eating_sound.play()
                     self.place_fruit()
 
                 player_head = self.player_snake.body[0]
